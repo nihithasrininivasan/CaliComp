@@ -51,7 +51,7 @@ class EmailGenerator:
 
         prompt = (
             f"Write a professional email to {name}. "
-            f"The payment of ${amount:.2f} is being {action_description}. "
+            f"The payment of ₹{amount:.2f} is being {action_description}. "
             f"Use a {tone} tone appropriate for a {relationship} relationship."
         )
 
@@ -100,7 +100,7 @@ class EmailGenerator:
             return (
                 f"Subject: Update on Payment\n\n"
                 f"Dear {name},\n\n"
-                f"We are writing to inform you that your payment of ${amount:.2f} "
+                f"We are writing to inform you that your payment of ₹{amount:.2f} "
                 f"is currently experiencing a slight delay due to temporary cash flow constraints. "
                 f"We appreciate your patience and will provide an update soon.\n\n"
                 f"Best regards,\nCaliComp Finance Team"
@@ -109,7 +109,7 @@ class EmailGenerator:
             return (
                 f"Subject: Payment Confirmation\n\n"
                 f"Dear {name},\n\n"
-                f"We are pleased to inform you that your payment of ${amount:.2f} "
+                f"We are pleased to inform you that your payment of ₹{amount:.2f} "
                 f"has been processed and will be transferred shortly.\n\n"
                 f"Thank you,\nCaliComp Finance Team"
             )

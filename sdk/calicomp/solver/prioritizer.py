@@ -102,18 +102,36 @@ class PaymentPrioritizer:
         scores: dict[int, float] = {}
 
         for ob in valid_obligations:
+            print("DEBUG obligation:", ob)
             ob_id = int(ob["id"])
             
             # ── Edge Case 4: Prevent division by zero ─────────────────────────
-            due_days = max(int(ob["due_days"]), 1)
+            due_days = max(int(ob.get("due_days", 1)), 1)
             
             # ── Edge Case 5: Sanitize input values ────────────────────────────
-            penalty = max(float(ob["penalty"]), 0.0)
-            flexible = 1 if int(ob["flexible"]) else 0
+            penalty = max(float(ob.get("penalty", 0.0)), 0.0)
+            flexible = 1 if int(ob.get("flexible", 0)) else 0
 
             urgency = 1.0 / due_days
-            flexibility_penalty = flexible * FLEXIBILITY_WEIGHT
-            composite_score = round(urgency + penalty - flexibility_penalty, 6)
+            
+            # ── New financial parameters ──────────────────────────────────────
+            liquidity_impact = float(ob.get("amount", 0)) / max(available_cash, 1.0)
+            blocks_revenue = int(ob.get("blocks_revenue", 0))
+            credit_impact = int(ob.get("credit_impact", 0))
+            grace_days = int(ob.get("grace_days", 0))
+            penalty_growth = float(ob.get("penalty_growth", 0))
+
+            grace_factor = 1.0 / (grace_days + 1)
+
+            composite_score = (
+                penalty * 1.0 +
+                urgency * 50 +
+                penalty_growth * 80 +
+                blocks_revenue * 120 +
+                credit_impact * 150 +
+                grace_factor * 60 -
+                liquidity_impact * 100
+            )
 
             scores[ob_id] = composite_score
             scoring_matrix.append({
@@ -121,6 +139,11 @@ class PaymentPrioritizer:
                 "urgency": round(urgency, 6),
                 "penalty": penalty,
                 "flexibility": flexible,
+                "liquidity_impact": liquidity_impact,
+                "blocks_revenue": blocks_revenue,
+                "credit_impact": credit_impact,
+                "grace_days": grace_days,
+                "penalty_growth": penalty_growth,
                 "composite_score": composite_score,
             })
 

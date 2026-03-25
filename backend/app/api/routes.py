@@ -51,6 +51,11 @@ class ObligationPayload(BaseModel):
     penalty: float = Field(..., ge=0.0, description="Penalty weight for non-payment")
     flexible: int = Field(..., ge=0, le=1, description="0 = rigid, 1 = flexible")
 
+    blocks_revenue: int = 0
+    credit_impact: int = 0
+    grace_days: int = 0
+    penalty_growth: float = 0.0
+
 
 class PrioritizeRequest(BaseModel):
     """Request body for /prioritize endpoint."""
