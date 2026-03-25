@@ -17,6 +17,10 @@ from __future__ import annotations
 
 import pulp
 
+# Weight applied to flexibility when computing priority score.
+# A flexible obligation (flexible=1) has its score reduced by this amount.
+FLEXIBILITY_WEIGHT = 0.5
+
 
 class PaymentPrioritizer:
     """
@@ -69,15 +73,15 @@ class PaymentPrioritizer:
             flexible = int(ob["flexible"])
 
             urgency = 1.0 / due_days
-            flexibility = 1.0 - (0.5 * flexible)  # flexible reduces priority by 50%
-            composite_score = round((urgency + penalty) * flexibility, 6)
+            flexibility_penalty = flexible * FLEXIBILITY_WEIGHT
+            composite_score = round(urgency + penalty - flexibility_penalty, 6)
 
             scores[ob_id] = composite_score
             scoring_matrix.append({
                 "id": ob_id,
                 "urgency": round(urgency, 6),
                 "penalty": penalty,
-                "flexibility": flexibility,
+                "flexibility": flexible,
                 "composite_score": composite_score,
             })
 

@@ -32,7 +32,7 @@ class DecisionExplainer:
                 - "id"              (int)
                 - "urgency"         (float)
                 - "penalty"         (float)
-                - "flexibility"     (float):  1.0 = rigid, 0.5 = flexible
+                - "flexibility"     (int):    0 = non-deferrable, 1 = deferrable
                 - "composite_score" (float)
 
         Returns:
@@ -96,10 +96,10 @@ class DecisionExplainer:
 
         # ── Flexibility descriptor ────────────────────────────────────────────
 
-        if flexibility >= 1.0:
-            parts.append("low flexibility")
+        if flexibility >= 1:
+            parts.append("high flexibility (can be deferred)")
         else:
-            parts.append("high flexibility (deferrable)")
+            parts.append("low flexibility (must be paid)")
 
         # ── Assemble sentence ─────────────────────────────────────────────────
 
