@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL Database ──────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-calicomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_in_production}
+      POSTGRES_DB: ${POSTGRES_DB:-calicomp_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-calicomp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Backend ──────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-calicomp}:${POSTGRES_PASSWORD:-changeme_in_production}@db:5432/${POSTGRES_DB:-calicomp_db}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000}
+      SECRET_KEY: ${SECRET_KEY:-replace-with-a-secure-random-string}
+      DEBUG: ${DEBUG:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+
+  # ── React Frontend ──────────────────────────────────
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_BASE_URL: http://localhost:8000/api
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+    driver: local

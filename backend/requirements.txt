@@ -1,0 +1,8 @@
+# CaliComp Backend Dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+pydantic>=2.5.0
+
+# SDK is installed from local path (pip install -e ../sdk)
+# Do NOT pin calicomp here — it's installed via pip install -e ./sdk

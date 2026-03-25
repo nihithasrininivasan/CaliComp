@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "calicomp"
+version = "0.1.0"
+description = "CaliComp — Semi-Autonomous Fintech Cash Flow Intelligence SDK"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "CaliComp Team"},
+]
+keywords = ["fintech", "cashflow", "liquidity", "solver", "reconciliation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial",
+]
+
+dependencies = [
+    "pandas>=2.0",
+    "pulp>=2.7",
+    "python-dateutil>=2.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["calicomp*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

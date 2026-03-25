@@ -1,0 +1,104 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+.eggs/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ========================
+# Node / React
+# ========================
+node_modules/
+frontend/build/
+frontend/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.crt
+
+# ========================
+# Database
+# ========================
+*.sqlite3
+*.db
+pgdata/
+
+# ========================
+# OS Files
+# ========================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ========================
+# Docker
+# ========================
+docker-compose.override.yml
+
+# ========================
+# Coverage & Testing
+# ========================
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+coverage/
+
+# ========================
+# Logs
+# ========================
+*.log
+logs/
+
+# ========================
+# Sensitive Data
+# ========================
+data/uploads/
+data/processed/
+*.csv.bak
