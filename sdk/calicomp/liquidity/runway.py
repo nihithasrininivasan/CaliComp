@@ -41,14 +41,16 @@ class RunwayCalculator:
         Returns:
             dict with:
                 - "days_to_zero"   (int | None): day index when balance < 0, or None
-                - "daily_balances" (list[dict]): [{"date": str, "balance": float}, ...]
+                - "daily_balances" (list[dict]): [{"date": str, "balance": float, "is_critical": bool}]
                 - "critical_date"  (str | None): ISO date when balance < 0, or None
+                - "status"         (str):        "critical" if balance goes negative, else "safe"
         """
         if not transactions:
             return {
                 "days_to_zero": None,
                 "daily_balances": [],
                 "critical_date": None,
+                "status": "safe",
             }
 
         # ── Parse & sort by date ───────────────────────────────────────────────
@@ -85,12 +87,15 @@ class RunwayCalculator:
             current_date = start_date + timedelta(days=day_offset)
             running_balance += daily_net.get(current_date, 0.0)
 
+            is_critical = running_balance < 0 and days_to_zero is None
+
             daily_balances.append({
                 "date": current_date.isoformat(),
-                "balance": round(running_balance, 2),
+                "balance": float(round(running_balance, 2)),
+                "is_critical": is_critical,
             })
 
-            if running_balance < 0 and days_to_zero is None:
+            if is_critical:
                 days_to_zero = day_offset
                 critical_date = current_date.isoformat()
 
@@ -98,4 +103,5 @@ class RunwayCalculator:
             "days_to_zero": days_to_zero,
             "daily_balances": daily_balances,
             "critical_date": critical_date,
+            "status": "critical" if days_to_zero is not None else "safe",
         }

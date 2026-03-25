@@ -62,7 +62,9 @@ class PaymentPrioritizer:
                 "selected_payments": [],
                 "priority_order": [],
                 "scoring_matrix": [],
-                "status": "no_obligations"
+                "status": "no_obligations",
+                "confidence_score": 0.0,
+                "confidence_level": "low"
             }
 
         # ── Edge Case 2: Zero or negative available cash ──────────────────────
@@ -72,7 +74,9 @@ class PaymentPrioritizer:
                 "priority_order": [int(ob["id"]) for ob in obligations],
                 "scoring_matrix": [],
                 "status": "no_cash",
-                "message": "No available cash to allocate"
+                "message": "No available cash to allocate",
+                "confidence_score": 0.0,
+                "confidence_level": "low"
             }
 
         # ── Edge Case 3: Invalid obligations (negative or zero amounts) ───────
@@ -87,7 +91,9 @@ class PaymentPrioritizer:
                 "priority_order": [],
                 "scoring_matrix": [],
                 "status": "invalid_input",
-                "message": "No valid obligations"
+                "message": "No valid obligations",
+                "confidence_score": 0.0,
+                "confidence_level": "low"
             }
 
         # ── Step 1: Compute scoring matrix ────────────────────────────────────
@@ -168,10 +174,39 @@ class PaymentPrioritizer:
         # Sort scoring matrix by composite score descending for readability
         scoring_matrix.sort(key=lambda x: x["composite_score"], reverse=True)
 
+        # ── Step 5: Compute Confidence Metric ─────────────────────────────────
+        confidence_score = 0.0
+        confidence_level = "low"
+
+        if len(scoring_matrix) > 0:
+            top_score = float(scoring_matrix[0]["composite_score"])
+            if len(scoring_matrix) >= 2:
+                second_top_score = float(scoring_matrix[1]["composite_score"])
+                score_gap = top_score - second_top_score
+            else:
+                score_gap = top_score
+
+            # Normalize into [0, 1] bounded value
+            calculated_confidence = score_gap / (top_score + 1e-6)
+            confidence_score = round(max(0.0, min(1.0, calculated_confidence)), 2)
+
+            # Assign taxonomy
+            if confidence_score >= 0.75:
+                confidence_level = "high"
+            elif confidence_score >= 0.4:
+                confidence_level = "medium"
+            else:
+                confidence_level = "low"
+
+            # Attach confidence to top decision
+            scoring_matrix[0]["decision_confidence"] = confidence_level
+
         # ── Edge Case 6: Ensure stable output structure ───────────────────────
         return {
             "selected_payments": selected_payments,
             "priority_order": priority_order,
             "scoring_matrix": scoring_matrix,
-            "status": "success"
+            "status": "success",
+            "confidence_score": confidence_score,
+            "confidence_level": confidence_level
         }
