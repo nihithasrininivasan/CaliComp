@@ -53,12 +53,41 @@ class PaymentPrioritizer:
                 - "selected_payments" (list[int]):    IDs chosen by the solver
                 - "priority_order"    (list[int]):    all IDs sorted by score desc
                 - "scoring_matrix"    (list[dict]):   per-obligation scoring breakdown
+                - "status"            (str):          solver execution status
+                - "message"           (str, optional): status details for errors
         """
+        # ── Edge Case 1: Empty obligations ────────────────────────────────────
         if not obligations:
             return {
                 "selected_payments": [],
                 "priority_order": [],
                 "scoring_matrix": [],
+                "status": "no_obligations"
+            }
+
+        # ── Edge Case 2: Zero or negative available cash ──────────────────────
+        if available_cash <= 0:
+            return {
+                "selected_payments": [],
+                "priority_order": [int(ob["id"]) for ob in obligations],
+                "scoring_matrix": [],
+                "status": "no_cash",
+                "message": "No available cash to allocate"
+            }
+
+        # ── Edge Case 3: Invalid obligations (negative or zero amounts) ───────
+        valid_obligations = []
+        for ob in obligations:
+            if float(ob.get("amount", 0)) > 0:
+                valid_obligations.append(ob)
+
+        if not valid_obligations:
+            return {
+                "selected_payments": [],
+                "priority_order": [],
+                "scoring_matrix": [],
+                "status": "invalid_input",
+                "message": "No valid obligations"
             }
 
         # ── Step 1: Compute scoring matrix ────────────────────────────────────
@@ -66,11 +95,15 @@ class PaymentPrioritizer:
         scoring_matrix: list[dict] = []
         scores: dict[int, float] = {}
 
-        for ob in obligations:
+        for ob in valid_obligations:
             ob_id = int(ob["id"])
-            due_days = max(int(ob["due_days"]), 1)  # prevent division by zero
-            penalty = float(ob["penalty"])
-            flexible = int(ob["flexible"])
+            
+            # ── Edge Case 4: Prevent division by zero ─────────────────────────
+            due_days = max(int(ob["due_days"]), 1)
+            
+            # ── Edge Case 5: Sanitize input values ────────────────────────────
+            penalty = max(float(ob["penalty"]), 0.0)
+            flexible = 1 if int(ob["flexible"]) else 0
 
             urgency = 1.0 / due_days
             flexibility_penalty = flexible * FLEXIBILITY_WEIGHT
@@ -91,7 +124,7 @@ class PaymentPrioritizer:
 
         # Binary decision variables: pay (1) or skip (0)
         pay_vars: dict[int, pulp.LpVariable] = {}
-        for ob in obligations:
+        for ob in valid_obligations:
             ob_id = int(ob["id"])
             pay_vars[ob_id] = pulp.LpVariable(
                 f"pay_{ob_id}", cat=pulp.LpBinary
@@ -101,7 +134,7 @@ class PaymentPrioritizer:
         prob += (
             pulp.lpSum(
                 scores[int(ob["id"])] * pay_vars[int(ob["id"])]
-                for ob in obligations
+                for ob in valid_obligations
             ),
             "TotalPriorityScore",
         )
@@ -110,7 +143,7 @@ class PaymentPrioritizer:
         prob += (
             pulp.lpSum(
                 float(ob["amount"]) * pay_vars[int(ob["id"])]
-                for ob in obligations
+                for ob in valid_obligations
             )
             <= available_cash,
             "BudgetConstraint",
@@ -124,7 +157,7 @@ class PaymentPrioritizer:
         # ── Step 4: Extract results ───────────────────────────────────────────
 
         selected_payments: list[int] = []
-        for ob in obligations:
+        for ob in valid_obligations:
             ob_id = int(ob["id"])
             if pulp.value(pay_vars[ob_id]) == 1.0:
                 selected_payments.append(ob_id)
@@ -135,8 +168,10 @@ class PaymentPrioritizer:
         # Sort scoring matrix by composite score descending for readability
         scoring_matrix.sort(key=lambda x: x["composite_score"], reverse=True)
 
+        # ── Edge Case 6: Ensure stable output structure ───────────────────────
         return {
             "selected_payments": selected_payments,
             "priority_order": priority_order,
             "scoring_matrix": scoring_matrix,
+            "status": "success"
         }
