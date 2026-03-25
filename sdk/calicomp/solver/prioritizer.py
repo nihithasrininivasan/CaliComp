@@ -2,61 +2,20 @@
 CaliComp Payment Prioritizer — Deterministic LP Solver.
 
 Uses PuLP to solve a 0-1 knapsack-style optimization problem:
-  Maximize weighted priority of selected payments
-  Subject to: total selected ≤ available balance
+  Maximize weighted priority score of selected obligations
+  Subject to: total selected ≤ available_cash
+
+Each obligation is scored on:
+  - Urgency (inverse of due_days)
+  - Penalty weight
+  - Flexibility (reduces priority)
+
+Fully deterministic — no AI/LLM.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
-
 import pulp
-
-if TYPE_CHECKING:
-    from calicomp.interfaces.engine import Transaction
-
-
-# ── Category Priority Weights ──────────────────────────────────────────────────
-# Higher weight = more important to pay first
-
-CATEGORY_WEIGHTS: dict[str, float] = {
-    "payroll": 10.0,    # Legal obligation — highest priority
-    "tax": 9.0,         # Government obligations — severe penalties
-    "rent": 8.0,        # Critical operational cost
-    "utilities": 7.0,   # Essential services
-    "insurance": 6.5,   # Contractual, hard to reinstate
-    "software": 5.0,    # Operational dependency
-    "supplies": 4.0,    # Can often be deferred
-    "marketing": 3.0,   # Discretionary
-    "travel": 2.0,      # Highly deferrable
-    "general": 1.0,     # Unknown / lowest priority
-}
-
-
-@dataclass
-class PrioritizedItem:
-    """A single item in the prioritization result."""
-
-    transaction_id: str
-    description: str
-    amount: float
-    category: str
-    score: float
-    selected: bool
-    reason: str
-
-
-@dataclass
-class PrioritizationResult:
-    """Complete result of the payment prioritization solver."""
-
-    ranked_items: list[PrioritizedItem] = field(default_factory=list)
-    total_selected_amount: float = 0.0
-    available_balance: float = 0.0
-    remaining_balance: float = 0.0
-    solver_status: str = "Not Solved"
-    explanation: str = ""
 
 
 class PaymentPrioritizer:
@@ -64,171 +23,116 @@ class PaymentPrioritizer:
     Deterministic LP-based payment prioritizer.
 
     Approach:
-      1. Filter outflow transactions only.
-      2. Assign priority weights based on category.
-      3. Formulate a 0-1 knapsack LP: maximize total priority score
-         subject to the budget constraint.
-      4. Solve with PuLP's default solver (CBC).
-      5. Return ranked results with full explainability.
+      1. Compute a composite priority score per obligation.
+      2. Formulate a 0-1 binary knapsack LP: maximize total score.
+      3. Constraint: sum of selected amounts ≤ available_cash.
+      4. Solve with PuLP CBC (deterministic).
+      5. Return selected IDs, priority order, and full scoring matrix.
     """
 
-    def solve(
-        self,
-        transactions: list,  # list[Transaction]
-        available_balance: float,
-    ) -> PrioritizationResult:
+    def solve(self, obligations: list[dict], available_cash: float) -> dict:
         """
         Solve the payment prioritization problem.
 
         Args:
-            transactions: Normalized transactions (only outflows are considered).
-            available_balance: Maximum budget for payments.
+            obligations: List of dicts, each with:
+                - "id"        (int):   unique obligation identifier
+                - "amount"    (float): payment amount
+                - "due_days"  (int):   days until due (lower = more urgent)
+                - "penalty"   (float): penalty for non-payment (0.0–1.0 typical)
+                - "flexible"  (int):   0 = rigid obligation, 1 = flexible/deferrable
+
+            available_cash: Maximum budget for selected payments.
 
         Returns:
-            PrioritizationResult with ranked items and explanation.
+            dict with:
+                - "selected_payments" (list[int]):    IDs chosen by the solver
+                - "priority_order"    (list[int]):    all IDs sorted by score desc
+                - "scoring_matrix"    (list[dict]):   per-obligation scoring breakdown
         """
-        # Filter to outflow transactions only
-        outflows = [t for t in transactions if t.is_outflow]
+        if not obligations:
+            return {
+                "selected_payments": [],
+                "priority_order": [],
+                "scoring_matrix": [],
+            }
 
-        if not outflows:
-            return PrioritizationResult(
-                available_balance=available_balance,
-                remaining_balance=available_balance,
-                solver_status="No outflows",
-                explanation="No outflow transactions found to prioritize.",
+        # ── Step 1: Compute scoring matrix ────────────────────────────────────
+
+        scoring_matrix: list[dict] = []
+        scores: dict[int, float] = {}
+
+        for ob in obligations:
+            ob_id = int(ob["id"])
+            due_days = max(int(ob["due_days"]), 1)  # prevent division by zero
+            penalty = float(ob["penalty"])
+            flexible = int(ob["flexible"])
+
+            urgency = 1.0 / due_days
+            flexibility = 1.0 - (0.5 * flexible)  # flexible reduces priority by 50%
+            composite_score = round((urgency + penalty) * flexibility, 6)
+
+            scores[ob_id] = composite_score
+            scoring_matrix.append({
+                "id": ob_id,
+                "urgency": round(urgency, 6),
+                "penalty": penalty,
+                "flexibility": flexibility,
+                "composite_score": composite_score,
+            })
+
+        # ── Step 2: Formulate LP ──────────────────────────────────────────────
+
+        prob = pulp.LpProblem("ObligationPrioritization", pulp.LpMaximize)
+
+        # Binary decision variables: pay (1) or skip (0)
+        pay_vars: dict[int, pulp.LpVariable] = {}
+        for ob in obligations:
+            ob_id = int(ob["id"])
+            pay_vars[ob_id] = pulp.LpVariable(
+                f"pay_{ob_id}", cat=pulp.LpBinary
             )
 
-        # ── Formulate the LP ───────────────────────────────────────────────────
-
-        prob = pulp.LpProblem("PaymentPrioritization", pulp.LpMaximize)
-
-        # Decision variables: binary (pay or don't pay)
-        pay_vars: dict[str, pulp.LpVariable] = {}
-        for txn in outflows:
-            pay_vars[txn.id] = pulp.LpVariable(f"pay_{txn.id}", cat=pulp.LpBinary)
-
-        # Objective: maximize total weighted priority score
-        weights = {
-            txn.id: CATEGORY_WEIGHTS.get(txn.category, 1.0) for txn in outflows
-        }
-        prob += pulp.lpSum(
-            weights[txn.id] * pay_vars[txn.id] for txn in outflows
-        ), "TotalPriorityScore"
-
-        # Constraint: total selected amount ≤ available balance
+        # Objective: maximize total weighted score
         prob += (
-            pulp.lpSum(txn.amount * pay_vars[txn.id] for txn in outflows)
-            <= available_balance
-        ), "BudgetConstraint"
+            pulp.lpSum(
+                scores[int(ob["id"])] * pay_vars[int(ob["id"])]
+                for ob in obligations
+            ),
+            "TotalPriorityScore",
+        )
 
-        # ── Solve ──────────────────────────────────────────────────────────────
+        # Constraint: total selected amount ≤ available cash
+        prob += (
+            pulp.lpSum(
+                float(ob["amount"]) * pay_vars[int(ob["id"])]
+                for ob in obligations
+            )
+            <= available_cash,
+            "BudgetConstraint",
+        )
 
-        solver = pulp.PULP_CBC_CMD(msg=0)  # Suppress solver output
+        # ── Step 3: Solve ─────────────────────────────────────────────────────
+
+        solver = pulp.PULP_CBC_CMD(msg=0)  # suppress solver output
         prob.solve(solver)
 
-        status = pulp.LpStatus[prob.status]
+        # ── Step 4: Extract results ───────────────────────────────────────────
 
-        # ── Extract Results ────────────────────────────────────────────────────
+        selected_payments: list[int] = []
+        for ob in obligations:
+            ob_id = int(ob["id"])
+            if pulp.value(pay_vars[ob_id]) == 1.0:
+                selected_payments.append(ob_id)
 
-        items: list[PrioritizedItem] = []
-        total_selected = 0.0
+        # Priority order: all IDs sorted by composite score descending
+        priority_order = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)
 
-        for txn in outflows:
-            is_selected = pulp.value(pay_vars[txn.id]) == 1.0
-            weight = weights[txn.id]
+        # Sort scoring matrix by composite score descending for readability
+        scoring_matrix.sort(key=lambda x: x["composite_score"], reverse=True)
 
-            if is_selected:
-                total_selected += txn.amount
-                reason = (
-                    f"✅ SELECTED — Category '{txn.category}' has priority weight "
-                    f"{weight:.1f}/10. Included within budget."
-                )
-            else:
-                reason = (
-                    f"⏸️ DEFERRED — Category '{txn.category}' (weight {weight:.1f}/10). "
-                    f"Excluded to stay within budget of ${available_balance:,.2f}."
-                )
-
-            items.append(
-                PrioritizedItem(
-                    transaction_id=txn.id,
-                    description=txn.description,
-                    amount=txn.amount,
-                    category=txn.category,
-                    score=weight,
-                    selected=is_selected,
-                    reason=reason,
-                )
-            )
-
-        # Sort: selected first, then by score descending
-        items.sort(key=lambda x: (-int(x.selected), -x.score))
-
-        remaining = available_balance - total_selected
-
-        # ── Build Explanation ──────────────────────────────────────────────────
-
-        explanation = self._build_explanation(
-            items=items,
-            total_selected=total_selected,
-            available_balance=available_balance,
-            remaining=remaining,
-            status=status,
-        )
-
-        return PrioritizationResult(
-            ranked_items=items,
-            total_selected_amount=round(total_selected, 2),
-            available_balance=available_balance,
-            remaining_balance=round(remaining, 2),
-            solver_status=status,
-            explanation=explanation,
-        )
-
-    @staticmethod
-    def _build_explanation(
-        items: list[PrioritizedItem],
-        total_selected: float,
-        available_balance: float,
-        remaining: float,
-        status: str,
-    ) -> str:
-        """Build a human-readable explanation of the prioritization."""
-        selected = [i for i in items if i.selected]
-        deferred = [i for i in items if not i.selected]
-
-        lines = [
-            f"🧮 **Payment Prioritization Report**",
-            f"",
-            f"• Solver Status: {status}",
-            f"• Available Budget: ${available_balance:,.2f}",
-            f"• Total Selected: ${total_selected:,.2f}",
-            f"• Remaining After Selection: ${remaining:,.2f}",
-            f"",
-            f"**Selected for Payment ({len(selected)}):**",
-        ]
-
-        for item in selected:
-            lines.append(
-                f"  ✅ {item.description}: ${item.amount:,.2f} "
-                f"(priority: {item.score:.1f})"
-            )
-
-        if deferred:
-            lines.append(f"")
-            lines.append(f"**Deferred ({len(deferred)}):**")
-            for item in deferred:
-                lines.append(
-                    f"  ⏸️ {item.description}: ${item.amount:,.2f} "
-                    f"(priority: {item.score:.1f})"
-                )
-
-        if deferred:
-            lines.append(f"")
-            lines.append(
-                f"💡 Recommendation: Consider accelerating receivables or securing "
-                f"short-term credit to cover the ${sum(d.amount for d in deferred):,.2f} "
-                f"in deferred payments."
-            )
-
-        return "\n".join(lines)
+        return {
+            "selected_payments": selected_payments,
+            "priority_order": priority_order,
+            "scoring_matrix": scoring_matrix,
+        }

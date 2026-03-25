@@ -6,7 +6,7 @@ Provides a single entry point for:
   2. Normalizing heterogeneous transaction formats
   3. Deduplicating and reconciling entries
   4. Computing liquidity runway (days-to-zero)
-  5. LP-based payment prioritization
+  5. LP-based payment prioritization with explainability
 """
 
 from __future__ import annotations
@@ -18,8 +18,9 @@ from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
 
-from calicomp.liquidity.runway import RunwayCalculator, RunwayResult
-from calicomp.solver.prioritizer import PaymentPrioritizer, PrioritizationResult
+from calicomp.liquidity.runway import RunwayCalculator
+from calicomp.solver.prioritizer import PaymentPrioritizer
+from calicomp.explainability.explainer import DecisionExplainer
 
 
 # ── Data Models ────────────────────────────────────────────────────────────────
@@ -58,8 +59,8 @@ class CaliCompEngine:
         engine = CaliCompEngine()
         transactions = engine.ingest("bank_statement.csv")
         normalized = engine.normalize(transactions)
-        runway = engine.compute_runway(normalized, current_balance=50000.0)
-        priority = engine.prioritize(normalized, available_balance=50000.0)
+        runway = engine.compute_runway(normalized)
+        result = engine.prioritize(obligations, available_cash=50000.0)
     """
 
     CATEGORY_KEYWORDS: dict[str, list[str]] = {
@@ -78,6 +79,7 @@ class CaliCompEngine:
     def __init__(self) -> None:
         self._runway_calculator = RunwayCalculator()
         self._prioritizer = PaymentPrioritizer()
+        self._explainer = DecisionExplainer()
 
     # ── Ingestion ──────────────────────────────────────────────────────────────
 
@@ -180,56 +182,52 @@ class CaliCompEngine:
 
     # ── Liquidity Runway ───────────────────────────────────────────────────────
 
-    def compute_runway(
-        self,
-        transactions: list[Transaction],
-        current_balance: float,
-        lookback_days: int = 30,
-    ) -> RunwayResult:
+    def compute_runway(self, transactions: list[dict]) -> dict:
         """
         Compute the liquidity runway (days-to-zero).
 
-        Uses historical burn rate from the last `lookback_days` to project
-        when the balance will reach zero.
+        Accepts raw transaction dicts with keys: amount, date, type.
+        Delegates to RunwayCalculator for day-by-day balance simulation.
 
         Args:
-            transactions: Normalized transaction list.
-            current_balance: Current account balance in dollars.
-            lookback_days: Number of days to look back for burn calculation.
+            transactions: List of dicts with "amount", "date", "type".
 
         Returns:
-            RunwayResult with days_to_zero, daily_burn_rate, and explanation.
+            dict with "days_to_zero", "daily_balances", "critical_date".
         """
-        return self._runway_calculator.compute(
-            transactions=transactions,
-            current_balance=current_balance,
-            lookback_days=lookback_days,
-        )
+        return self._runway_calculator.compute(transactions=transactions)
 
-    # ── Payment Prioritization ─────────────────────────────────────────────────
+    # ── Payment Prioritization with Explainability ─────────────────────────────
 
-    def prioritize(
-        self,
-        transactions: list[Transaction],
-        available_balance: float,
-    ) -> PrioritizationResult:
+    def prioritize(self, obligations: list[dict], available_cash: float) -> dict:
         """
-        Prioritize upcoming payments using a deterministic LP solver.
+        Prioritize obligations using LP solver and attach explanations.
 
-        Uses PuLP to solve a constrained optimization problem that maximizes
-        a weighted priority score while staying within budget.
+        Accepts obligation dicts with keys: id, amount, due_days, penalty, flexible.
+        Returns combined result with priorities and human-readable explanations.
 
         Args:
-            transactions: Normalized transaction list (outflows are prioritized).
-            available_balance: Total budget available for payments.
+            obligations: List of obligation dicts.
+            available_cash: Maximum budget for payments.
 
         Returns:
-            PrioritizationResult with ranked items and human-readable explanation.
+            dict with:
+                - "priorities"    (dict): solver output (selected_payments, priority_order, scoring_matrix)
+                - "explanations"  (list[str]): human-readable explanation per obligation
         """
-        return self._prioritizer.solve(
-            transactions=transactions,
-            available_balance=available_balance,
+        priorities = self._prioritizer.solve(
+            obligations=obligations,
+            available_cash=available_cash,
         )
+
+        explanations = self._explainer.explain(
+            scoring_matrix=priorities["scoring_matrix"],
+        )
+
+        return {
+            "priorities": priorities,
+            "explanations": explanations,
+        }
 
     # ── Private Helpers ────────────────────────────────────────────────────────
 

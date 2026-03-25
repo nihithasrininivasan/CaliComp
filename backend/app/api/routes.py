@@ -3,8 +3,8 @@ CaliComp API Routes.
 
 Exposes REST endpoints:
   POST /api/upload      — Upload CSV bank statement
-  POST /api/runway      — Compute liquidity runway
-  POST /api/prioritize  — Prioritize payments via LP solver
+  POST /api/runway      — Compute liquidity runway (days-to-zero)
+  POST /api/prioritize  — Prioritize obligations via LP solver
 """
 
 from __future__ import annotations
@@ -31,24 +31,32 @@ class TransactionPayload(BaseModel):
     """A single transaction in API request format."""
 
     date: str
-    description: str
+    description: str = ""
     amount: float
-    type: Optional[str] = "outflow"
+    type: Optional[str] = "debit"
 
 
 class RunwayRequest(BaseModel):
     """Request body for /runway endpoint."""
 
     transactions: list[TransactionPayload]
-    current_balance: float = Field(..., gt=0, description="Current account balance")
-    lookback_days: int = Field(30, ge=1, le=365, description="Historical lookback window")
+
+
+class ObligationPayload(BaseModel):
+    """A single obligation in API request format."""
+
+    id: int
+    amount: float
+    due_days: int = Field(..., ge=1, description="Days until due")
+    penalty: float = Field(..., ge=0.0, description="Penalty weight for non-payment")
+    flexible: int = Field(..., ge=0, le=1, description="0 = rigid, 1 = flexible")
 
 
 class PrioritizeRequest(BaseModel):
     """Request body for /prioritize endpoint."""
 
-    transactions: list[TransactionPayload]
-    available_balance: float = Field(..., gt=0, description="Budget for payments")
+    obligations: list[ObligationPayload]
+    available_cash: float = Field(..., gt=0, description="Budget for payments")
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
@@ -98,15 +106,12 @@ async def compute_runway(request: RunwayRequest):
     """
     Compute the liquidity runway (days-to-zero).
 
-    Accepts a list of transactions and current balance, returns
-    detailed runway analysis with explainability.
+    Accepts a list of transactions, returns day-by-day balance simulation
+    and the critical date when balance first goes negative.
     """
     try:
-        result = _engine_service.compute_runway(
-            transactions=[t.model_dump() for t in request.transactions],
-            current_balance=request.current_balance,
-            lookback_days=request.lookback_days,
-        )
+        txn_dicts = [t.model_dump() for t in request.transactions]
+        result = _engine_service.get_runway(txn_dicts)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Runway computation error: {str(e)}")
@@ -115,16 +120,18 @@ async def compute_runway(request: RunwayRequest):
 @router.post("/prioritize")
 async def prioritize_payments(request: PrioritizeRequest):
     """
-    Prioritize payments using the LP solver.
+    Prioritize obligations using the LP solver.
 
-    Accepts a list of transactions and available balance, returns
-    ranked items with full explainability.
+    Accepts obligations with urgency/penalty/flexibility scoring,
+    returns selected payments, priority order, scoring matrix,
+    and human-readable explanations.
     """
     try:
-        result = _engine_service.prioritize(
-            transactions=[t.model_dump() for t in request.transactions],
-            available_balance=request.available_balance,
-        )
+        data = {
+            "obligations": [ob.model_dump() for ob in request.obligations],
+            "available_cash": request.available_cash,
+        }
+        result = _engine_service.get_priorities(data)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prioritization error: {str(e)}")

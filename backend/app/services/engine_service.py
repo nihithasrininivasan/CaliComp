@@ -3,11 +3,11 @@ CaliComp Engine Service — Backend service layer.
 
 Acts as the bridge between FastAPI routes and the CaliComp SDK.
 Converts API payloads into SDK calls and serializes results.
+No direct solver or financial logic here — only SDK delegation.
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from typing import Any
 
 from calicomp import CaliCompEngine
@@ -51,58 +51,33 @@ class EngineService:
             for t in normalized
         ]
 
-    def compute_runway(
-        self,
-        transactions: list[dict],
-        current_balance: float,
-        lookback_days: int = 30,
-    ) -> dict[str, Any]:
+    def get_runway(self, data: list[dict]) -> dict[str, Any]:
         """
-        Compute liquidity runway from API transaction payloads.
+        Compute liquidity runway from raw transaction dicts.
 
         Args:
-            transactions: List of transaction dicts from the API.
-            current_balance: Current account balance.
-            lookback_days: Lookback window for burn rate.
+            data: List of transaction dicts with "amount", "date", "type".
 
         Returns:
-            Serialized RunwayResult dict.
+            dict with "days_to_zero", "daily_balances", "critical_date".
         """
-        # Convert API dicts → SDK raw format → normalized Transaction objects
-        normalized = self._engine.normalize(transactions)
+        return self._engine.compute_runway(transactions=data)
 
-        result = self._engine.compute_runway(
-            transactions=normalized,
-            current_balance=current_balance,
-            lookback_days=lookback_days,
-        )
-
-        result_dict = asdict(result)
-        # Convert date objects to ISO strings
-        result_dict["analysis_start"] = result.analysis_start.isoformat()
-        result_dict["analysis_end"] = result.analysis_end.isoformat()
-        return result_dict
-
-    def prioritize(
-        self,
-        transactions: list[dict],
-        available_balance: float,
-    ) -> dict[str, Any]:
+    def get_priorities(self, data: dict[str, Any]) -> dict[str, Any]:
         """
-        Prioritize payments from API transaction payloads.
+        Prioritize obligations with explainability.
 
         Args:
-            transactions: List of transaction dicts from the API.
-            available_balance: Budget for payments.
+            data: Dict containing:
+                - "obligations"    (list[dict]): obligation records
+                - "available_cash" (float):      budget for payments
 
         Returns:
-            Serialized PrioritizationResult dict.
+            dict with "priorities" and "explanations".
         """
-        normalized = self._engine.normalize(transactions)
-
-        result = self._engine.prioritize(
-            transactions=normalized,
-            available_balance=available_balance,
+        obligations = data["obligations"]
+        available_cash = float(data["available_cash"])
+        return self._engine.prioritize(
+            obligations=obligations,
+            available_cash=available_cash,
         )
-
-        return asdict(result)
