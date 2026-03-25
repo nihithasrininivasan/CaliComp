@@ -171,12 +171,12 @@ class PaymentPrioritizer:
         # Priority order: all IDs sorted by composite score descending
         priority_order = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)
 
-        # Sort scoring matrix by composite score descending for readability
-        scoring_matrix.sort(key=lambda x: x["composite_score"], reverse=True)
-
         # ── Step 5: Compute Confidence Metric ─────────────────────────────────
         confidence_score = 0.0
         confidence_level = "low"
+
+        # Sort temporarily by pure score just to compute score gap
+        scoring_matrix.sort(key=lambda x: x["composite_score"], reverse=True)
 
         if len(scoring_matrix) > 0:
             top_score = float(scoring_matrix[0]["composite_score"])
@@ -198,8 +198,13 @@ class PaymentPrioritizer:
             else:
                 confidence_level = "low"
 
-            # Attach confidence to top decision
-            scoring_matrix[0]["decision_confidence"] = confidence_level
+        # Attach decisions, confidence, and reorder matrix properly
+        for entry in scoring_matrix:
+            entry["decision"] = "selected" if entry["id"] in selected_payments else "deferred"
+            entry["decision_confidence"] = confidence_level
+
+        # Re-sort: Selected items FIRST, then strictly by highest score descending
+        scoring_matrix.sort(key=lambda x: (x["decision"] != "selected", -x["composite_score"]))
 
         # ── Edge Case 6: Ensure stable output structure ───────────────────────
         return {

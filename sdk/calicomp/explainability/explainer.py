@@ -34,6 +34,7 @@ class DecisionExplainer:
                 - "penalty"         (float)
                 - "flexibility"     (int):    0 = non-deferrable, 1 = deferrable
                 - "composite_score" (float)
+                - "decision"        (str):    "selected" or "deferred"
 
         Returns:
             List of explanation strings, one per obligation, in the same order
@@ -50,6 +51,7 @@ class DecisionExplainer:
             penalty = float(entry["penalty"])
             flexibility = float(entry["flexibility"])
             composite = float(entry["composite_score"])
+            decision = str(entry.get("decision", "deferred"))
 
             explanation = self._build_single_explanation(
                 ob_id=ob_id,
@@ -57,6 +59,7 @@ class DecisionExplainer:
                 penalty=penalty,
                 flexibility=flexibility,
                 composite=composite,
+                decision=decision,
             )
             explanations.append(explanation)
 
@@ -69,6 +72,7 @@ class DecisionExplainer:
         penalty: float,
         flexibility: float,
         composite: float,
+        decision: str,
     ) -> str:
         """Build a single human-readable explanation for one obligation."""
         parts: list[str] = []
@@ -106,4 +110,9 @@ class DecisionExplainer:
         reason_clause = ", ".join(parts[:-1]) + f", and {parts[-1]}" if len(parts) > 1 else parts[0]
         score_note = f" (score: {composite:.4f})"
 
-        return f"Obligation {ob_id} prioritized because {reason_clause}.{score_note}"
+        if decision == "selected":
+            return f"Obligation {ob_id} selected because {reason_clause}.{score_note}"
+        else:
+            if urgency >= self.URGENCY_MEDIUM or penalty >= self.PENALTY_MEDIUM:
+                return f"Obligation {ob_id} was deferred despite high priority due to cash constraints.{score_note}"
+            return f"Obligation {ob_id} deferred because {reason_clause}.{score_note}"
