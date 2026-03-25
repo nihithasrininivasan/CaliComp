@@ -1,0 +1,7 @@
+2026-03-25 17:13:32.703 IST [13788] LOG:  could not bind IPv6 address "::1": Permission denied
+2026-03-25 17:13:32.703 IST [13788] HINT:  Is another postmaster already running on port 5432? If not, wait a few seconds and retry.
+2026-03-25 17:13:32.703 IST [13788] LOG:  could not bind IPv4 address "127.0.0.1": Permission denied
+2026-03-25 17:13:32.703 IST [13788] HINT:  Is another postmaster already running on port 5432? If not, wait a few seconds and retry.
+2026-03-25 17:13:32.703 IST [13788] WARNING:  could not create listen socket for "localhost"
+2026-03-25 17:13:32.703 IST [13788] FATAL:  could not create any TCP/IP sockets
+2026-03-25 17:13:32.703 IST [13788] LOG:  database system is shut down

@@ -1,0 +1,7 @@
+Date	Description	Withdrawal	Deposit	Balance
+2026-03-25	Opening Balance			112000.00
+2026-03-26	Transfer to Self	5000.00		107000.00
+2026-03-27	ATM Cash Withdrawal	2000.00		105000.00
+2026-03-28	UPI Payment			1000.00	106000.00
+2026-03-29	Monthly Interest			500.00	106500.00
+2026-03-30	Closing Balance			112000.00
