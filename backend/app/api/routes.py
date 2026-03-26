@@ -140,3 +140,36 @@ async def prioritize_payments(request: PrioritizeRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prioritization error: {str(e)}")
+
+
+from app.services.email_pipeline import fetch_and_parse_transactions
+
+@router.post("/email-ingest")
+async def ingest_emails():
+    """
+    Fetch and parse transaction emails from Gmail into structured records.
+    """
+    try:
+        transactions = fetch_and_parse_transactions()
+        if not transactions:
+            return {"transactions": [], "message": "No valid transactions parsed from incoming emails"}
+        return {"transactions": transactions}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Email ingestion error: {str(e)}")
+
+
+@router.post("/email-to-runway")
+async def email_to_runway():
+    """
+    Fetch transaction emails, then directly pass them to the runway engine.
+    """
+    try:
+        transactions = fetch_and_parse_transactions()
+        if not transactions:
+            return {"status": "no_transactions", "message": "No new transactions found via Gmail."}
+            
+        result = _engine_service.get_runway(transactions)
+        result["ingested_emails_count"] = len(transactions)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Email-to-Runway error: {str(e)}")
