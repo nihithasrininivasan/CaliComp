@@ -41,18 +41,26 @@ interface OCRResult {
   confidence: number;
 }
 
-async function processOCR(_file: File | string): Promise<OCRResult> {
-  // TODO: replace with POST /api/v1/ocr/process
-  return new Promise((resolve) =>
-    setTimeout(() => resolve({
-      vendor:     'Sharma Textiles',
-      amount:     55000,
-      date:       '2026-04-03',
-      type:       'expense',
-      category:   'Supplier',
-      confidence: 0.94,
-    }), 2000)
-  );
+async function processOCR(file: File | string): Promise<OCRResult> {
+  const formData = new FormData();
+  if (typeof file === 'string') {
+    const res = await fetch(file);
+    const blob = await res.blob();
+    formData.append('file', blob, 'capture.jpg');
+  } else {
+    formData.append('file', file);
+  }
+
+  const response = await fetch('http://localhost:8000/api/ocr/process', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('OCR processing failed');
+  }
+
+  return response.json();
 }
 
 // ── Tab types ─────────────────────────────────────────────────────────────────

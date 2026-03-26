@@ -17,6 +17,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from app.services.engine_service import EngineService
+from app.services.ocr_service import OCRService
 
 router = APIRouter(tags=["cashflow"])
 
@@ -140,3 +141,16 @@ async def prioritize_payments(request: PrioritizeRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prioritization error: {str(e)}")
+
+
+@router.post("/ocr/process")
+async def process_ocr(file: UploadFile = File(...)):
+    """Process a receipt/invoice image using OCR."""
+    try:
+        content = await file.read()
+        if not file.filename:
+            file.filename = "upload.jpg"
+        result = OCRService.process_ocr(content, file.filename)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OCR processing error: {str(e)}")
