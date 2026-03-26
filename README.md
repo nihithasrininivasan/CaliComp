@@ -1,219 +1,169 @@
-🚀 CaliComp — AI-Powered Cashflow Intelligence & Decision Engine
+# CaliComp
 
-Transforming raw financial signals into optimized, explainable decisions under uncertainty.
+**AI-Powered Cashflow Intelligence & Decision Engine**
 
-🧠 Overview
+CaliComp is a full-stack financial intelligence system that transforms raw financial signals into optimized, explainable decisions under uncertainty. It is built for individuals and businesses managing cash constraints — going beyond visualization to actively prescribe what to do next.
 
-CaliComp is a full-stack financial intelligence system designed to help individuals and businesses make optimal financial decisions under cash constraints.
+Live Demo: (https://caliicomp.netlify.app/login)
 
-Unlike traditional tools that only track or visualize data, CaliComp:
+---
 
-ingests real financial data (Gmail, receipts, invoices)
-models future liquidity scenarios
-solves constrained optimization problems
-produces actionable, explainable decisions
+## What Makes CaliComp Different
 
-💡 CaliComp does not just show financial data — it actively recommends what to do next.
+Most financial tools describe the past. CaliComp prescribes the future.
 
-🔥 Key Differentiators
+| Typical Tools | CaliComp |
+|---|---|
+| Static or mock data | Real-time Gmail ingestion via OAuth |
+| Simple rule-based heuristics | Constrained optimization with linear programming |
+| Insights without actions | Actionable decisions with automated email generation |
+| Black-box outputs | Explainable, auditable, confidence-scored results |
 
-Most solutions:
+---
 
-rely on static or mock data
-use simple heuristics
-lack explainability
-provide insights without actions
-✅ CaliComp delivers:
-Real-time Gmail ingestion via OAuth
-Robust multi-format parsing (HTML + text emails)
-Optimization-driven decision engine (PuLP)
-Scenario-based financial simulation
-Hybrid ML + deterministic modeling
-Explainable outputs with confidence scoring
-Automated action layer (email generation)
-⚙️ System Architecture
+## System Architecture
+
+```
 External Data Sources (Gmail / PDFs / Receipts)
-                ↓
+                |
         Data Ingestion Layer
-                ↓
+                |
      Parsing & Structuring Engine
-                ↓
+                |
    Forecasting Layer (ML + Features)
-                ↓
+                |
       Liquidity Runway Simulation
-                ↓
+                |
  Optimization Engine (Linear Programming)
-                ↓
+                |
  Decision + Confidence Layer
-                ↓
+                |
  Explainability + Action Generation
-                ↓
+                |
         Frontend Visualization
-🧩 Core Components
-📬 1. Gmail Data Ingestion (OAuth-secured)
-Google OAuth 2.0 authentication
-Secure inbox access
-Handles:
-text/plain
-text/html (HTML stripping)
-Extracts:
-₹ / Rs / INR formats
-debit/credit classification
-transaction dates
+```
 
-⚠️ Production-grade ingestion — not mock data
+---
 
-📊 2. Cash Runway Engine
+## Core Components
 
-Simulates future liquidity:
+### Gmail Data Ingestion
+- Google OAuth 2.0 authentication for secure inbox access
+- Handles `text/plain` and `text/html` (with HTML stripping)
+- Extracts INR/Rs/₹ amounts, debit/credit classification, and transaction dates
+- Production-grade ingestion — not mock data
 
-daily balance projection
-critical cash-out detection
-time-to-zero estimation
+### Cash Runway Engine
+Simulates future liquidity by projecting daily balances, detecting critical cash-out points, and estimating time-to-zero.
+
+```json
 {
   "days_to_zero": 2,
   "critical_date": "2026-03-27",
   "daily_balances": [...]
 }
-🧠 3. Optimization-Based Prioritization Engine
+```
 
-Formulated as a constrained optimization problem:
+### Optimization-Based Prioritization Engine
+Formulated as a constrained linear programming problem using PuLP:
 
-Maximize financial stability under limited cash
+> **Maximize financial stability under limited cash**
 
-Built using PuLP (Linear Programming).
+Decision factors: urgency, penalty severity, flexibility, liquidity impact, revenue blocking, credit impact, grace period, and penalty growth rate.
 
-Factors considered:
-urgency
-penalty
-flexibility
-liquidity impact
-revenue blocking
-credit impact
-grace period
-penalty growth
-🎯 4. Decision Output Layer
-selected payments
-deferred payments
-priority ranking
-scoring matrix
-📊 5. Confidence Scoring System
-normalized (0–1)
-based on score gaps
-Level	Meaning
-High	strong decision
-Medium	moderate
-Low	uncertain
-🧾 6. Explainability Engine
+### Decision Output Layer
+Produces selected vs. deferred payment sets, priority rankings, and a full scoring matrix per obligation.
 
-Example:
+### Confidence Scoring System
+Scores are normalized between 0 and 1 based on inter-option score gaps:
 
-“Selected due to high penalty, low flexibility, and near-term due date.”
+| Level | Meaning |
+|---|---|
+| High | Strong, clear decision |
+| Medium | Moderate certainty |
+| Low | Ambiguous — review recommended |
 
-human-readable
-deterministic
-auditable
-✉️ 7. AI Email Action Generator
+### Explainability Engine
+Every decision surfaces a human-readable rationale, for example:
 
-Generates context-aware emails:
+> *"Selected due to high penalty, low flexibility, and near-term due date."*
 
-vendor → polite
-bank → formal
-employee → transparent
-📈 8. Scenario-Based Planning
+All outputs are deterministic and auditable.
 
-Simulates multiple futures:
+### AI Email Action Generator
+Context-aware vendor/bank/employee email drafts generated per decision:
+- Vendor communications — polite tone
+- Bank communications — formal tone
+- Employee communications — transparent tone
 
-normal
-high-revenue (festival spike)
-worst-case
-🤖 9. Lightweight ML Forecasting
+### Scenario-Based Planning
+Simulates multiple financial futures in parallel:
+- Normal trajectory
+- High-revenue (e.g. festival or seasonal spike)
+- Worst-case
 
-Features:
+### ML Forecasting Layer
+Lightweight models for revenue forecasting:
 
-day of week
-holiday
-season
-past revenue
+- **Features:** day of week, holiday flag, season, historical revenue
+- **Models:** linear regression, moving average
 
-Models:
+### Edge Case Handling
+Gracefully handles empty inputs, zero cash, negative balances, missing fields, and parsing failures throughout the pipeline.
 
-linear regression
-moving average
-🧪 10. Edge Case Handling
+---
 
-Handles:
+## Tech Stack
 
-empty inputs
-zero cash
-negative balances
-missing fields
-parsing failures
-🖥️ Frontend (Visualization Layer)
+**Backend**
+- FastAPI, Python
+- PuLP (Linear Programming)
+- Gmail API (OAuth 2.0)
+- Regex parsing, MIME decoding, HTML cleaning
 
-🌐 Live Demo:
-https://benevolent-salamander-233e89.netlify.app/
+**ML Layer**
+- Linear regression
+- Feature engineering
 
-Key UI Components:
-📉 Cash flow runway graph
-🧠 Smart payment recommendations
-📊 Scenario simulation
-📩 Email action interface
-🛠️ Tech Stack
-Backend:
-FastAPI
-Python
-PuLP (Linear Programming)
-Gmail API (OAuth 2.0)
-Data Processing:
-Regex parsing
-MIME decoding
-HTML cleaning
-ML Layer:
-Linear regression
-Feature engineering
-Frontend:
-React
-Tailwind CSS
-Recharts / D3
-🔌 API Endpoints
-Endpoint	Description
-/api/email-ingest	Fetch & parse Gmail transactions
-/api/runway	Simulate liquidity
-/api/prioritize	Optimize payments
-🧠 Design Philosophy
-1. Decision > Visualization
+**Frontend**
+- React, Tailwind CSS
+- Recharts / D3
 
-Actionable intelligence over passive dashboards
+---
 
-2. Explainability > Black Box
+## API Reference
 
-Transparent and interpretable outputs
+| Endpoint | Description |
+|---|---|
+| `POST /api/email-ingest` | Fetch and parse Gmail transactions |
+| `POST /api/runway` | Simulate liquidity runway |
+| `POST /api/prioritize` | Run optimization and return payment decisions |
 
-3. Real Data > Mock Data
+---
 
-Built to work on actual inputs
+## Status
 
-🏆 Impact
-Helps startups manage burn rate
-Enables smarter financial prioritization
-Prevents liquidity crises
-🧠 Final Thought
+- [x] Real data ingestion (Gmail OAuth)
+- [x] Optimization engine (linear programming)
+- [x] ML forecasting integration
+- [x] Explainable decision outputs
+- [x] End-to-end pipeline
+- [x] Frontend visualization
 
-Most financial tools describe the past.
-CaliComp prescribes the future.
+---
 
-👥 Team
+## Design Philosophy
 
-Built with:
+**Decision over visualization** — actionable intelligence, not passive dashboards.
 
-systems thinking
-optimization
-applied ML
-and a lot of debugging
-🚀 Status
-✅ Real data ingestion
-✅ Optimization engine
-✅ ML integration
-✅ Explainable outputs
-✅ End-to-end pipeline
+**Explainability over black-box** — every output is transparent and interpretable.
+
+**Real data over mocks** — built to operate on actual financial inputs from day one.
+
+---
+
+## Impact
+
+- Helps startups monitor and manage burn rate in real time
+- Enables smarter, data-driven payment prioritization
+- Surfaces liquidity crises before they become critical
